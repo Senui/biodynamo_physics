@@ -30,11 +30,23 @@ float compute_sum(float* voa, int N) {
   return sum;
 }
 
+void clear_force(float* voa, int N) {
+  for (int j = 0; j < N*N*N; j++) {
+    voa[3*j+0] = 0;
+    voa[3*j+1] = 0;
+    voa[3*j+2] = 0;
+  }
+}
+
+bool are_same(float a, float b) {
+  return fabs(a - b) < std::numeric_limits<float>::epsilon();
+}
+
 // make list of randomly ordered indices (rai)
 void make_rai(int* rai, int N, int cpc) {
   std::random_device rd;
-  std::mt19937 rng(time(0));
-  std::uniform_int_distribution<int> uni(0, N * N * N);
+  std::mt19937 rng(4357);
+  std::uniform_int_distribution<int> uni(0, N * N * N - 1);
 
   for (int i = 0; i < cpc * N * N * N; i++) {
     rai[i] = uni(rng);
@@ -127,7 +139,7 @@ __global__ void collide(
   }
 }
  
-int cuda_collide(int N, int cpc, int T, int diameter, int argc) {
+int cuda_collide(int N, int cpc, int T, int diameter, int argc, float expected) {
   int* indices;
   float* positions;
   float* force;
@@ -138,6 +150,9 @@ int cuda_collide(int N, int cpc, int T, int diameter, int argc) {
   cudaMallocManaged(&positions, 3*N*N*N*sizeof(float));
   cudaMallocManaged(&force, 3*N*N*N*sizeof(float));
   cudaMallocManaged(&diameters, N*N*N*sizeof(float));
+
+  // auto total_mem = cpc*N*N*N*sizeof(int) + 3*N*N*N*sizeof(float) + 3*N*N*N*sizeof(float) + N*N*N*sizeof(float);
+  // std::cout << "total memory allocated = " << total_mem / (1024*1024) << " MB" << std::endl;
  
   // initialize
   const float space = 10;
@@ -159,35 +174,49 @@ int cuda_collide(int N, int cpc, int T, int diameter, int argc) {
     diameters[j] = diameter;
   }
 
-  if (argc == 5) {
+  if (argc == 7) {
     // make random accessable pattern
     make_rai(indices, N, cpc);
-    std::cout << "Running on GPU (CUDA) for " << T << " iterations (random access pattern)" << std::endl << std::endl;
+    // std::cout << "Running on GPU (CUDA) for " << T << " iterations (random access pattern)" << std::endl << std::endl;
   } else {
     // make regular accessable pattern
     make_rei(indices, N, cpc);
-    std::cout << "Running on GPU (CUDA) for " << T << " iterations (regular access pattern)" << std::endl << std::endl;
+    // std::cout << "Running on GPU (CUDA) for " << T << " iterations (regular access pattern)" << std::endl << std::endl;
   }
 
-
-  auto t1 = Clock::now();
+  // struct cudaDeviceProp properties;
+  // cudaGetDeviceProperties(&properties, device);
+  // std::cout<<"using "<<properties.multiProcessorCount<<" multiprocessors"<<std::endl;
+  // std::cout<<"max threads per processor: "<<properties.maxThreadsPerMultiProcessor<<std::endl;
  
   for (int t = 0; t < T; t++) {
+    auto t1 = Clock::now();
+    
     // Launch kernel on 1M elements on the GPU
-    int blockSize = 128;
+    int blockSize = 1024;
     int numBlocks = (N*N*N + blockSize - 1) / blockSize;
     collide<<<numBlocks, blockSize>>>(positions, diameters, force, indices, N, cpc);
    
     // Wait for GPU to finish before accessing on host
     cudaDeviceSynchronize();
+
+    auto t2 = Clock::now();
+    std::cout << std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1).count() << std::endl;
+    float actual = compute_sum(force, N);
+    if (are_same(actual, expected)) {
+      clear_force(force, N);
+      continue;    
+    } else {
+      std::cout << "Wrong result! Difference = " << fabs(actual - expected) << std::endl;
+      return 1;
+    }
   }
  
-  auto t2 = Clock::now();
-  std::cout << "\033[1mExecution time = "
-            << std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1)
-                   .count()
-            << " ms\033[0m" << std::endl;
-  std::cout << "Total force = " << compute_sum(force, N) << std::endl;
+  // std::cout << "\033[1mExecution time = "
+  //           << std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1)
+  //                  .count()
+  //           << " ms\033[0m" << std::endl;
+  // std::cout << "Total force = " << compute_sum(force, N) << std::endl;
  
   // Free memory
   cudaFree(indices);

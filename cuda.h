@@ -4,4 +4,4 @@
 #include <random>
 #include <math.h>
 
-int cuda_collide(int N, int cpc, int T, int diameter, int argc);
+int cuda_collide(int N, int cpc, int T, int diameter, int argc, float expected);

@@ -11,6 +11,17 @@
 
 typedef std::chrono::high_resolution_clock Clock;
 
+float compute_sum(std::vector<std::array<REAL, 3>>& voa) {
+  float sum = 0.0;
+
+  for (auto arr : voa) {
+    for (int i = 0; i < 3; i++) {
+      sum += arr[i];
+    }
+  }
+  return sum;
+}
+
 void calculate_collisions(const std::array<REAL, 3> &ref_mass_location,
                           REAL ref_diameter, REAL ref_iof_coefficient,
                           const std::array<REAL, 3> &nb_mass_location,
@@ -58,19 +69,45 @@ void calculate_collisions(const std::array<REAL, 3> &ref_mass_location,
   // printf("center_distance = %f, module = %f, f = %f, delta = %f, r1 = %f, r2 = %f", center_distance, module, f, delta, r1, r2);
 }
 
+void FlushCache() {
+  const int N = 100 * 1024 * 1024;
+  char* tmp = (char*) malloc(100 * 1024 * 1024);
+  for (int i = 0; i < N; i++) {
+    tmp[i] = i;
+  }
+  delete tmp;
+}
+
+float calculate_expected(const std::vector<std::array<REAL, 3>>& positions, std::vector<std::array<REAL, 3>>* force, const std::vector<REAL>& diameters, const std::vector<int>& nidc, size_t N, int T, int cpc) {
+  for (size_t i = 0; i < N * N * N; i++) {
+    const auto& pos = positions[i];
+    auto diameter = diameters[i];
+    for (int nb = 0; nb < cpc; nb++) {
+      auto neighbor_idx =  nidc[cpc * i + nb];
+      calculate_collisions(
+          pos, diameter, 0.15, positions[nidc[cpc * i + nb]],
+            diameters[nidc[cpc * i + nb]], 0.15, &((*force)[i]));
+      // calculate_collisions(pos, diameter, 0.15, positions[neighbor_idx], diameters[neighbor_idx], 0.15, &f); 
+    }
+  }
+  return compute_sum(*force);
+}
+
 void cpu(const std::vector<std::array<REAL, 3>>& positions, std::vector<std::array<REAL, 3>>* force, const std::vector<REAL>& diameters, const std::vector<int>& nidc, size_t N, int T, int cpc) {
-	
-	for (int t = 0; t < T; t++) {
 	#pragma omp parallel for
 	  for (size_t i = 0; i < N * N * N; i++) {
+      const auto& pos = positions[i];
+      auto diameter = diameters[i];
+      // std::array<REAL, 3> f;
 	    for (int nb = 0; nb < cpc; nb++) {
 	      // std::cout << i << " vs " << nidc[cpc*i + nb] << std::endl;
         // printf("Colliding cell %d (@{%f, %f, %f}) and %d (@{%f, %f, %f}), ", i, positions[i][0], positions[i][1],positions[i][2], nidc[cpc * i + nb], positions[nidc[cpc * i + nb]][0], positions[nidc[cpc * i + nb]][1], positions[nidc[cpc * i + nb]][2]);
+        auto neighbor_idx =  nidc[cpc * i + nb];
 	      calculate_collisions(
-	          positions[i], diameters[i], 0.15, positions[nidc[cpc * i + nb]],
+	          pos, diameter, 0.15, positions[nidc[cpc * i + nb]],
 	          diameters[nidc[cpc * i + nb]], 0.15, &((*force)[i]));
-         // printf("force = [%f, %f, %f]\n", force[i][0], force[i][1], force[i][2]);
+        // calculate_collisions(pos, diameter, 0.15, positions[neighbor_idx], diameters[neighbor_idx], 0.15, &f); 
+        // printf("force = [%f, %f, %f]\n", force[i][0], force[i][1], force[i][2]);
 	    }
 	  }
 	}
-}
