@@ -2,6 +2,7 @@
 #include <iostream>
 #include <random>
 #include <vector>
+#include "libmorton/include/morton.h"
 
 #define REAL float
 
@@ -11,15 +12,13 @@ void print_help() {
             << std::endl << "<H> = hardware type; CPU = 0  |  OpenCL = 1  |  CUDA = 2"
             << std::endl << "<cells_per_dim> = cells per dimension"
             << std::endl << "<iterations> = number of iterations"
-            << std::endl << "<neighbors> = number of neighbors"
             << std::endl << "<threads> = number of threads (CPU only)"
-            << std::endl << "<r> = (optional) random access pattern [can be any value]"
             << std::endl;
 }
 
 void initialize(std::vector<std::array<REAL, 3>> &positions, int N) {
   positions.reserve(N * N * N);
-  const REAL space = 10;
+  const REAL space = 20;
   for (size_t x = 0; x < N; x++) {
     REAL x_pos = x * space;
     for (size_t y = 0; y < N; y++) {
@@ -28,6 +27,26 @@ void initialize(std::vector<std::array<REAL, 3>> &positions, int N) {
         positions.push_back({x_pos, y_pos, z * space});
       }
     }
+  }
+}
+
+std::vector<std::pair<uint32_t, std::array<REAL, 3>>> morton_pairing(std::vector<std::array<REAL, 3>>* positions) {
+  std::vector<std::pair<uint32_t, std::array<REAL, 3>>> res(positions->size());
+  for (size_t i = 0; i < positions->size(); i++) {
+    auto& pos = (*positions)[i];
+    res[i] = std::make_pair(morton3D_32_encode(pos[0], pos[1], pos[2]), pos);
+  }
+  return res;
+}
+
+void morton_sort(std::vector<std::array<REAL, 3>>* positions) {
+  // create the following list of pairs: (morton_code, 3D coordinate)
+  auto kv_pairs = morton_pairing(positions);
+  // sort the list based on the morton code values
+  std::sort(kv_pairs.begin(), kv_pairs.end());
+  // copy the sorted coordinates back into the positions array
+  for (size_t i = 0; i < positions->size(); i++) {
+    (*positions)[i] = kv_pairs[i].second;
   }
 }
 

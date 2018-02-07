@@ -7,6 +7,8 @@
 #include <iostream>
 #include <vector>
 
+#include "grid.h"
+
 #define REAL float
 
 typedef std::chrono::high_resolution_clock Clock;
@@ -14,19 +16,27 @@ typedef std::chrono::high_resolution_clock Clock;
 float compute_sum(std::vector<std::array<REAL, 3>>& voa) {
   float sum = 0.0;
 
-  for (auto arr : voa) {
-    for (int i = 0; i < 3; i++) {
-      sum += arr[i];
-    }
+  for (auto& arr : voa) {
+    sum += std::fabs(arr[0]);
+    sum += std::fabs(arr[1]);
+    sum += std::fabs(arr[2]);
   }
   return sum;
+}
+
+void clear_force_cpu(std::vector<std::array<float, 3>>* voa) {
+  for (int i = 0; i < voa->size(); i++) {
+    (*voa)[i][0] = 0;
+    (*voa)[i][1] = 0;
+    (*voa)[i][2] = 0;
+  }
 }
 
 void calculate_collisions(const std::array<REAL, 3> &ref_mass_location,
                           REAL ref_diameter, REAL ref_iof_coefficient,
                           const std::array<REAL, 3> &nb_mass_location,
                           REAL nb_diameter, REAL nb_iof_coefficient,
-                          std::array<REAL, 3> *result) {
+                          std::array<REAL, 3> *result, size_t nidx) {
   auto c1 = ref_mass_location;
   REAL r1 = 0.5 * ref_diameter;
   auto c2 = nb_mass_location;
@@ -47,12 +57,13 @@ void calculate_collisions(const std::array<REAL, 3> &ref_mass_location,
   REAL delta = r1 + r2 - center_distance;
 
   if (delta < 0) {
-    *result = {0.0, 0.0, 0.0};
     return;
   }
   // to avoid a division by 0 if the centers are (almost) at the same location
   if (center_distance < 0.00000001) {
-    *result = {42.0, 42.0, 42.0};
+    (*result)[0] += 42.0;
+    (*result)[1] += 42.0;
+    (*result)[2] += 42.0;
     return;
   }
 
@@ -65,8 +76,9 @@ void calculate_collisions(const std::array<REAL, 3> &ref_mass_location,
   REAL module = f / center_distance;
   std::array<REAL, 3> force2on1(
       {module * comp1, module * comp2, module * comp3});
-  *result = force2on1;
-  // printf("center_distance = %f, module = %f, f = %f, delta = %f, r1 = %f, r2 = %f", center_distance, module, f, delta, r1, r2);
+  (*result)[0] += force2on1[0];
+  (*result)[1] += force2on1[1];
+  (*result)[2] += force2on1[2];
 }
 
 void FlushCache() {
@@ -78,36 +90,18 @@ void FlushCache() {
   delete tmp;
 }
 
-float calculate_expected(const std::vector<std::array<REAL, 3>>& positions, std::vector<std::array<REAL, 3>>* force, const std::vector<REAL>& diameters, const std::vector<int>& nidc, size_t N, int T, int cpc) {
+
+void cpu(std::vector<std::array<REAL, 3>>& positions, std::vector<std::array<REAL, 3>>* force, const std::vector<REAL>& diameters, Grid& g, size_t N) {
+#pragma omp parallel for
   for (size_t i = 0; i < N * N * N; i++) {
-    const auto& pos = positions[i];
-    auto diameter = diameters[i];
-    for (int nb = 0; nb < cpc; nb++) {
-      auto neighbor_idx =  nidc[cpc * i + nb];
-      calculate_collisions(
-          pos, diameter, 0.15, positions[nidc[cpc * i + nb]],
-            diameters[nidc[cpc * i + nb]], 0.15, &((*force)[i]));
-      // calculate_collisions(pos, diameter, 0.15, positions[neighbor_idx], diameters[neighbor_idx], 0.15, &f); 
-    }
+    auto lambda = [&](size_t nidx) {
+      calculate_collisions(positions[i], diameters[i], 0.15, positions[nidx], diameters[nidx], 0.15, &((*force)[i]), nidx);
+    };
+    g.ForEachNeighborWithinRadius(lambda, &positions, i, 1200);
   }
-  return compute_sum(*force);
 }
 
-void cpu(const std::vector<std::array<REAL, 3>>& positions, std::vector<std::array<REAL, 3>>* force, const std::vector<REAL>& diameters, const std::vector<int>& nidc, size_t N, int T, int cpc) {
-	#pragma omp parallel for
-	  for (size_t i = 0; i < N * N * N; i++) {
-      const auto& pos = positions[i];
-      auto diameter = diameters[i];
-      // std::array<REAL, 3> f;
-	    for (int nb = 0; nb < cpc; nb++) {
-	      // std::cout << i << " vs " << nidc[cpc*i + nb] << std::endl;
-        // printf("Colliding cell %d (@{%f, %f, %f}) and %d (@{%f, %f, %f}), ", i, positions[i][0], positions[i][1],positions[i][2], nidc[cpc * i + nb], positions[nidc[cpc * i + nb]][0], positions[nidc[cpc * i + nb]][1], positions[nidc[cpc * i + nb]][2]);
-        auto neighbor_idx =  nidc[cpc * i + nb];
-	      calculate_collisions(
-	          pos, diameter, 0.15, positions[nidc[cpc * i + nb]],
-	          diameters[nidc[cpc * i + nb]], 0.15, &((*force)[i]));
-        // calculate_collisions(pos, diameter, 0.15, positions[neighbor_idx], diameters[neighbor_idx], 0.15, &f); 
-        // printf("force = [%f, %f, %f]\n", force[i][0], force[i][1], force[i][2]);
-	    }
-	  }
-	}
+float calculate_expected(std::vector<std::array<REAL, 3>>& positions, std::vector<std::array<REAL, 3>>* force, const std::vector<REAL>& diameters, Grid& g, size_t N) {
+  cpu(positions, force, diameters, g, N);
+  return compute_sum(*force);
+}
