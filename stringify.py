@@ -41,6 +41,9 @@ def stringify_kernel(kernel_file, header_file):
                      +  "// kernel stringified at " \
                      +  datetime.datetime.now().strftime("%Y-%m-%d %H:%M") + "\n\n"
 
+    modified_content += "#ifndef " + kernel_name.upper() + "_H_\n"
+    modified_content += "#define " + kernel_name.upper() + "_H_\n\n"
+
     modified_content += "const char* const " + kernel_name + " = "
 
     for line in StringIO.StringIO(kernel_content):
@@ -48,9 +51,10 @@ def stringify_kernel(kernel_file, header_file):
  + "\n")
 
     modified_content += ";\n" \
-                     + "// kernel " + kernel_name + " end \n" \
+                     + "// kernel " + kernel_name + " end \n\n" \
                      + header_content[pos:]
-    # print(modified_content)
+
+    modified_content += "#endif  // " + kernel_name.upper() + "_H_\n"
 
     header.write(modified_content)
 

@@ -1,5 +1,8 @@
 // kernel collide_kernel start 
-// kernel stringified at 2018-02-07 17:20
+// kernel stringified at 2018-02-08 11:57
+
+#ifndef COLLIDE_KERNEL_H_
+#define COLLIDE_KERNEL_H_
 
 const char* const collide_kernel = "int3 get_box_coordinates(float3 pos, __constant int* grid_dimensions, uint box_length) {\n"
 "  int3 box_coords;\n"
@@ -140,3 +143,5 @@ const char* const collide_kernel = "int3 get_box_coordinates(float3 pos, __const
 "}\n"
 ;
 // kernel collide_kernel end 
+
+#endif  // COLLIDE_KERNEL_H_
