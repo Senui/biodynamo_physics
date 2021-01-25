@@ -5,10 +5,13 @@
 #include <random>
 #include <math.h>
 
+#define REAL float
+#define REAL3 float3
+
 int cuda_collide(std::vector<uint32_t>* starts,
                  std::vector<uint16_t>* lengths,
                  std::vector<uint32_t>* successors,
                  uint32_t box_length,
                  std::array<uint32_t, 3>* num_boxes_axis,
                  std::array<int32_t, 3>* grid_dimensions,
-                 int N, int T, int diameter, float expected);
+                 int N, int T, int diameter, REAL expected);

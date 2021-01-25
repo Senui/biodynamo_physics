@@ -11,8 +11,8 @@
 #include "grid.h"
 #include "collide_kernel.h"
 
-float compute_sum_ocl(std::vector<std::array<float, 3>>& voa) {
-  float sum = 0.0;
+REAL compute_sum_ocl(std::vector<std::array<REAL, 3>>& voa) {
+  REAL sum = 0.0;
 
   for (auto& arr : voa) {
     sum += fabs(arr[0]);
@@ -22,7 +22,7 @@ float compute_sum_ocl(std::vector<std::array<float, 3>>& voa) {
   return sum;
 }
 
-void clear_force(std::vector<std::array<float, 3>>* voa) {
+void clear_force(std::vector<std::array<REAL, 3>>* voa) {
   for (int i = 0; i < voa->size(); i++) {
     (*voa)[i][0] = 0;
     (*voa)[i][1] = 0;
@@ -30,20 +30,20 @@ void clear_force(std::vector<std::array<float, 3>>* voa) {
   }
 }
 
-bool are_same(float a, float b) {
+bool are_same(REAL a, REAL b) {
   return fabs(a - b) < 1e-20;
 }
 
-int opencl(std::vector<std::array<float, 3>>& positions, 
-                  std::vector<float>& diameters,
-                  std::vector<std::array<float, 3>>* force,
+int opencl(std::vector<std::array<REAL, 3>>& positions, 
+                  std::vector<REAL>& diameters,
+                  std::vector<std::array<REAL, 3>>* force,
                   std::vector<cl_uint>* starts,
                   std::vector<cl_ushort>* lengths,
                   std::vector<cl_uint>* successors,
                   cl_uint box_length,
                   std::array<cl_uint, 3>* num_boxes_axis,
                   std::array<cl_int, 3>* grid_dimensions,
-                  size_t N, int T, float expected) {
+                  size_t N, int T, REAL expected) {
   try {
     // Get list of OpenCL platforms.
     std::vector<cl::Platform> platform;
@@ -156,13 +156,13 @@ int opencl(std::vector<std::array<float, 3>>& positions,
       // std::cout << "global work size = " << (N*N*N + (block_size - (N*N*N)%block_size)) << std::endl;
       auto t1 = Clock::now();
       queue.enqueueNDRangeKernel(collide, cl::NullRange, cl::NDRange(N*N*N + (block_size - (N*N*N)%block_size)), cl::NDRange(block_size));
-      queue.enqueueReadBuffer(force_arg, CL_TRUE, 0, force->size() * 3 * sizeof(float), force->data()->data());
+      queue.enqueueReadBuffer(force_arg, CL_TRUE, 0, force->size() * 3 * sizeof(REAL), force->data()->data());
       auto t2 = Clock::now();
       std::cout << (std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1)
                      .count()) << " ms"
                 << std::endl;
 
-      float actual = compute_sum_ocl(*force);
+      REAL actual = compute_sum_ocl(*force);
       // std::cout << "Iteration " << i << ": " << actual << std::endl;
       if (are_same(actual, expected)) {
         // std::cout << "Correct result! Because " << std::setprecision(15) << actual << " == " << expected << std::endl;

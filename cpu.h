@@ -13,8 +13,8 @@
 
 typedef std::chrono::high_resolution_clock Clock;
 
-float compute_sum(std::vector<std::array<REAL, 3>>& voa) {
-  float sum = 0.0;
+REAL compute_sum(std::vector<std::array<REAL, 3>>& voa) {
+  REAL sum = 0.0;
 
   for (auto& arr : voa) {
     sum += std::fabs(arr[0]);
@@ -24,7 +24,7 @@ float compute_sum(std::vector<std::array<REAL, 3>>& voa) {
   return sum;
 }
 
-void clear_force_cpu(std::vector<std::array<float, 3>>* voa) {
+void clear_force_cpu(std::vector<std::array<REAL, 3>>* voa) {
   for (int i = 0; i < voa->size(); i++) {
     (*voa)[i][0] = 0;
     (*voa)[i][1] = 0;
@@ -101,7 +101,7 @@ void cpu(std::vector<std::array<REAL, 3>>& positions, std::vector<std::array<REA
   }
 }
 
-float calculate_expected(std::vector<std::array<REAL, 3>>& positions, std::vector<std::array<REAL, 3>>* force, const std::vector<REAL>& diameters, Grid& g, size_t N) {
+REAL calculate_expected(std::vector<std::array<REAL, 3>>& positions, std::vector<std::array<REAL, 3>>* force, const std::vector<REAL>& diameters, Grid& g, size_t N) {
   cpu(positions, force, diameters, g, N);
   return compute_sum(*force);
 }

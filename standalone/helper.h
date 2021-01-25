@@ -29,8 +29,8 @@ void initialize(std::vector<std::array<REAL, 3>> &positions, int N) {
   }
 }
 
-float compute_sum(std::vector<std::array<REAL, 3>>& voa) {
-  float sum = 0.0;
+REAL compute_sum(std::vector<std::array<REAL, 3>>& voa) {
+  REAL sum = 0.0;
 
   for (auto arr : voa) {
     for (int i = 0; i < 3; i++) {

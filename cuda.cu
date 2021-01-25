@@ -6,13 +6,13 @@
 
 typedef std::chrono::high_resolution_clock Clock;
 
-void initialize(float* positions, int N) {
-  const float space = 10;
+void initialize(REAL* positions, int N) {
+  const REAL space = 10;
   int i = 0;
   for (size_t x = 0; x < N; x++) {
-    float x_pos = x * space;
+    REAL x_pos = x * space;
     for (size_t y = 0; y < N; y++) {
-      float y_pos = y * space;
+      REAL y_pos = y * space;
       for (size_t z = 0; z < N; z++) {
         positions[3*i+0] = x_pos;
         positions[3*i+1] = y_pos;
@@ -23,8 +23,8 @@ void initialize(float* positions, int N) {
   }
 }
 
-float compute_sum_cuda(float* voa, int N) {
-  float sum = 0.0;
+REAL compute_sum_cuda(REAL* voa, int N) {
+  REAL sum = 0.0;
 
   for (int j = 0; j < N*N*N; j++) {
     sum += fabs(voa[3*j+0]);
@@ -34,7 +34,7 @@ float compute_sum_cuda(float* voa, int N) {
   return sum;
 }
 
-void clear_force(float* voa, int N) {
+void clear_force(REAL* voa, int N) {
   for (int j = 0; j < N*N*N; j++) {
     voa[3*j+0] = 0;
     voa[3*j+1] = 0;
@@ -42,11 +42,11 @@ void clear_force(float* voa, int N) {
   }
 }
 
-bool are_same(float a, float b) {
-  return fabs(a - b) < std::numeric_limits<float>::epsilon();
+bool are_same(REAL a, REAL b) {
+  return fabs(a - b) < std::numeric_limits<REAL>::epsilon();
 }
 
-__device__ int3 get_box_coordinates(float3 pos, int32_t* grid_dimensions, uint32_t box_length) {
+__device__ int3 get_box_coordinates(REAL3 pos, int32_t* grid_dimensions, uint32_t box_length) {
   int3 box_coords;
   box_coords.x = (floor(pos.x) - grid_dimensions[0]) / box_length;
   box_coords.y = (floor(pos.y) - grid_dimensions[1]) / box_length;
@@ -58,26 +58,26 @@ __device__ uint32_t get_box_id_2(int3 bc, uint32_t* num_boxes_axis) {
   return bc.z * num_boxes_axis[0]*num_boxes_axis[1] + bc.y * num_boxes_axis[0] + bc.x;
 }
 
-__device__ uint32_t get_box_id(float3 pos, uint32_t* num_boxes_axis, int32_t* grid_dimensions, uint32_t box_length) {
+__device__ uint32_t get_box_id(REAL3 pos, uint32_t* num_boxes_axis, int32_t* grid_dimensions, uint32_t box_length) {
   int3 box_coords = get_box_coordinates(pos, grid_dimensions, box_length);
   return get_box_id_2(box_coords, num_boxes_axis);
 }
 
-__device__ void compute_force(float* positions, float* diameters, uint32_t idx, uint32_t nidx, float* result) {
-  float r1 = 0.5 * diameters[idx];
-  float r2 = 0.5 * diameters[nidx];
+__device__ void compute_force(REAL* positions, REAL* diameters, uint32_t idx, uint32_t nidx, REAL* result) {
+  REAL r1 = 0.5 * diameters[idx];
+  REAL r2 = 0.5 * diameters[nidx];
   // We take virtual bigger radii to have a distant interaction, to get a desired density.
-  float additional_radius = 10.0 * 0.15;
+  REAL additional_radius = 10.0 * 0.15;
   r1 += additional_radius;
   r2 += additional_radius;
 
-  float comp1 = positions[3*idx + 0] - positions[3*nidx + 0];
-  float comp2 = positions[3*idx + 1] - positions[3*nidx + 1];
-  float comp3 = positions[3*idx + 2] - positions[3*nidx + 2];
-  float center_distance = sqrtf(comp1 * comp1 + comp2 * comp2 + comp3 * comp3);
+  REAL comp1 = positions[3*idx + 0] - positions[3*nidx + 0];
+  REAL comp2 = positions[3*idx + 1] - positions[3*nidx + 1];
+  REAL comp3 = positions[3*idx + 2] - positions[3*nidx + 2];
+  REAL center_distance = sqrtf(comp1 * comp1 + comp2 * comp2 + comp3 * comp3);
 
   // the overlap distance (how much one penetrates in the other)
-  float delta = r1 + r2 - center_distance;
+  REAL delta = r1 + r2 - center_distance;
 
   if (delta < 0) {
     return;
@@ -95,23 +95,23 @@ __device__ void compute_force(float* positions, float* diameters, uint32_t idx, 
   // printf("Delta for neighbor [%d] = %f\n", nidx, delta);
 
   // the force itself
-  float r = (r1 * r2) / (r1 + r2);
-  float gamma = 1; // attraction coeff
-  float k = 2;     // repulsion coeff
-  float f = k * delta - gamma * sqrt(r * delta);
+  REAL r = (r1 * r2) / (r1 + r2);
+  REAL gamma = 1; // attraction coeff
+  REAL k = 2;     // repulsion coeff
+  REAL f = k * delta - gamma * sqrt(r * delta);
 
-  float module = f / center_distance;
+  REAL module = f / center_distance;
   result[3*idx + 0] += module * comp1;
   result[3*idx + 1] += module * comp2;
   result[3*idx + 2] += module * comp3;
 }
 
 
-__device__ void default_force(float* positions,
-                   float* diameters,
+__device__ void default_force(REAL* positions,
+                   REAL* diameters,
                    uint32_t idx, uint32_t start, uint16_t length,
                    uint32_t* successors,
-                   float* result) {
+                   REAL* result) {
   // printf("start = %d \n", start);
   // printf("length = %d \n", length);
   uint32_t nidx = start;
@@ -127,8 +127,8 @@ __device__ void default_force(float* positions,
 }
 
 __global__ void collide(
-       float* positions,
-       float* diameters,
+       REAL* positions,
+       REAL* diameters,
        int N,
        uint32_t* starts,
        uint16_t* lengths,
@@ -136,11 +136,11 @@ __global__ void collide(
        uint32_t* box_length,
        uint32_t* num_boxes_axis,
        int32_t* grid_dimensions,
-       float* result) {
+       REAL* result) {
   uint32_t tidx = blockIdx.x * blockDim.x + threadIdx.x;
   if (tidx < N * N * N) {
     // if (tidx == 0) {
-      float3 pos;
+      REAL3 pos;
       pos.x = positions[3*tidx + 0];
       pos.y = positions[3*tidx + 1];
       pos.z = positions[3*tidx + 2];
@@ -170,15 +170,15 @@ int cuda_collide(std::vector<uint32_t>* starts,
                  uint32_t box_length,
                  std::array<uint32_t, 3>* num_boxes_axis,
                  std::array<int32_t, 3>* grid_dimensions,
-                 int N, int T, int diameter, float expected) {
-  float* positions;
-  float* force;
-  float* diameters;
+                 int N, int T, int diameter, REAL expected) {
+  REAL* positions;
+  REAL* force;
+  REAL* diameters;
 
   // Allocate Unified Memory -- accessible from CPU or GPU
-  cudaMallocManaged(&positions, 3*N*N*N*sizeof(float));
-  cudaMallocManaged(&force, 3*N*N*N*sizeof(float));
-  cudaMallocManaged(&diameters, N*N*N*sizeof(float));
+  cudaMallocManaged(&positions, 3*N*N*N*sizeof(REAL));
+  cudaMallocManaged(&force, 3*N*N*N*sizeof(REAL));
+  cudaMallocManaged(&diameters, N*N*N*sizeof(REAL));
 
   uint32_t* d_starts = NULL;
   uint16_t* d_lengths = NULL;
@@ -201,16 +201,16 @@ int cuda_collide(std::vector<uint32_t>* starts,
   cudaMemcpy(d_num_boxes_axis, num_boxes_axis->data(), 3 * sizeof(uint32_t), cudaMemcpyHostToDevice);
   cudaMemcpy(d_grid_dimensions, grid_dimensions->data(), 3 * sizeof(uint32_t), cudaMemcpyHostToDevice);
 
-  // auto total_mem = 3*N*N*N*sizeof(float) + 3*N*N*N*sizeof(float) + N*N*N*sizeof(float);
+  // auto total_mem = 3*N*N*N*sizeof(REAL) + 3*N*N*N*sizeof(REAL) + N*N*N*sizeof(REAL);
   // std::cout << "total memory allocated = " << total_mem / (1024*1024) << " MB" << std::endl;
  
   // initialize
-  const float space = 20;
+  const REAL space = 20;
   int i = 0;
   for (size_t x = 0; x < N; x++) {
-    float x_pos = x * space;
+    REAL x_pos = x * space;
     for (size_t y = 0; y < N; y++) {
-      float y_pos = y * space;
+      REAL y_pos = y * space;
       for (size_t z = 0; z < N; z++) {
         positions[3*i+0] = x_pos;
         positions[3*i+1] = y_pos;
@@ -245,7 +245,7 @@ int cuda_collide(std::vector<uint32_t>* starts,
     // }
     // ofs.close();
 
-    float actual = compute_sum_cuda(force, N);
+    REAL actual = compute_sum_cuda(force, N);
     if (are_same(actual, expected)) {
       std::cout << "Correct result! Because " << std::setprecision(15) << actual << " == " << expected << std::endl;
       clear_force(force, N);

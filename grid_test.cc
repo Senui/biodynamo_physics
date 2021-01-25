@@ -12,7 +12,7 @@ typedef std::chrono::high_resolution_clock Clock;
 int main(int argc, char** argv) {
 	// Create and initialize cell positions
 	int N = std::stoi(argv[1]);
-	std::vector<std::array<float, 3>> positions;
+	std::vector<std::array<REAL, 3>> positions;
 	initialize(positions, N);
 
 	// If selected, sort the positions based on the Z-order curve (Morton)

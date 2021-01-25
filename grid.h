@@ -18,6 +18,8 @@
 using std::array;
 using std::fmod;
 
+#define REAL float
+
 /// Vector with fixed number of elements == Array with push_back function that
 /// keeps track of its size
 /// NB: No bounds checking. Do not push_back more often than the number of
@@ -207,7 +209,7 @@ class Grid {
 
   /// @brief      Initialize the grid with the given simulation objects
   /// @param[in]  adjacency    The adjacency (see #Adjacency)
-  void Initialize(std::vector<std::array<float, 3>>* positions, uint32_t box_length, Adjacency adjacency = kHigh) {
+  void Initialize(std::vector<std::array<REAL, 3>>* positions, uint32_t box_length, Adjacency adjacency = kHigh) {
     adjacency_ = adjacency;
 
     int32_t inf = std::numeric_limits<int32_t>::max();
@@ -238,11 +240,11 @@ class Grid {
   }
 
   /// Updates the grid, as simulation objects may have moved, added or deleted
-  void UpdateGrid(std::vector<std::array<float, 3>>* positions, uint32_t box_length) {
+  void UpdateGrid(std::vector<std::array<REAL, 3>>* positions, uint32_t box_length) {
     ClearGrid();
 
-    auto inf = std::numeric_limits<float>::max();
-    array<float, 6> tmp_dim = {{inf, -inf, inf, -inf, inf, -inf}};
+    auto inf = std::numeric_limits<REAL>::max();
+    array<REAL, 6> tmp_dim = {{inf, -inf, inf, -inf, inf, -inf}};
     CalculateGridDimensions(positions, &tmp_dim);
     RoundOffGridDimensions(tmp_dim);
 
@@ -299,16 +301,16 @@ class Grid {
 
   /// Calculates what the grid dimensions need to be in order to contain all the
   /// simulation objects
-  void CalculateGridDimensions(std::vector<std::array<float, 3>>* positions, array<float, 6>* ret_grid_dimensions) {
+  void CalculateGridDimensions(std::vector<std::array<REAL, 3>>* positions, array<REAL, 6>* ret_grid_dimensions) {
     // const auto max_threads = omp_get_max_threads();
 
-    // std::vector<std::array<float, 6>*> all_grid_dimensions(max_threads,
+    // std::vector<std::array<REAL, 6>*> all_grid_dimensions(max_threads,
                                                             // nullptr);
 // #pragma omp parallel
 //     {
 //       auto thread_id = omp_get_thread_num();
-//       auto* grid_dimensions = new std::array<float, 6>;
-//       auto inf = std::numeric_limits<float>::max();
+//       auto* grid_dimensions = new std::array<REAL, 6>;
+//       auto inf = std::numeric_limits<REAL>::max();
 //       *grid_dimensions = {{inf, -inf,
 //                            inf, -inf,
 //                            inf, -inf}};
@@ -350,7 +352,7 @@ class Grid {
 //     }
   }
 
-  void RoundOffGridDimensions(const array<float, 6>& grid_dimensions) {
+  void RoundOffGridDimensions(const array<REAL, 6>& grid_dimensions) {
     assert(grid_dimensions_[0] > -9.999999999);
     assert(grid_dimensions_[2] > -9.999999999);
     assert(grid_dimensions_[4] > -9.999999999);
@@ -373,12 +375,12 @@ class Grid {
   ///
   /// @return     The distance between the two points
   ///
-  inline float SquaredEuclideanDistance(
-      const std::array<float, 3>& pos1,
-      const std::array<float, 3>& pos2) const {
-    const float dx = pos2[0] - pos1[0];
-    const float dy = pos2[1] - pos1[1];
-    const float dz = pos2[2] - pos1[2];
+  inline REAL SquaredEuclideanDistance(
+      const std::array<REAL, 3>& pos1,
+      const std::array<REAL, 3>& pos2) const {
+    const REAL dx = pos2[0] - pos1[0];
+    const REAL dy = pos2[1] - pos1[1];
+    const REAL dz = pos2[2] - pos1[2];
     return (dx * dx + dy * dy + dz * dz);
   }
 
@@ -394,9 +396,9 @@ class Grid {
   /// @tparam     SO          The type of the simulation object
   ///
   template <typename Lambda>
-  void ForEachNeighborWithinRadius(const Lambda& lambda, std::vector<std::array<float, 3>>* positions, 
+  void ForEachNeighborWithinRadius(const Lambda& lambda, std::vector<std::array<REAL, 3>>* positions, 
                                    size_t simulation_object_id,
-                                   float squared_radius) {
+                                   REAL squared_radius) {
     const auto& position = (*positions)[simulation_object_id];
 
     FixedSizeVector<const Box*, 27> neighbor_boxes;
@@ -424,7 +426,7 @@ class Grid {
   ///
   /// @return     The box index.
   ///
-  size_t GetBoxIndex(const array<float, 3>& position) const {
+  size_t GetBoxIndex(const array<REAL, 3>& position) const {
     array<uint32_t, 3> box_coord;
     box_coord[0] = (floor(position[0]) - grid_dimensions_[0]) / box_length_;
     box_coord[1] = (floor(position[1]) - grid_dimensions_[2]) / box_length_;
@@ -434,7 +436,7 @@ class Grid {
   }
 
   /// Gets the size of the largest object in the grid
-  float GetLargestObjectSize() const { return largest_object_size_; }
+  REAL GetLargestObjectSize() const { return largest_object_size_; }
 
   array<int32_t, 6>& GetDimensions() { return grid_dimensions_; }
 
@@ -513,7 +515,7 @@ class Grid {
   /// Determines which boxes to search neighbors in (see enum Adjacency)
   Adjacency adjacency_;
   /// The size of the largest object in the simulation
-  float largest_object_size_ = 0;
+  REAL largest_object_size_ = 0;
   /// Cube which contains all simulation objects
   /// {x_min, x_max, y_min, y_max, z_min, z_max}
   std::array<int32_t, 6> grid_dimensions_;
